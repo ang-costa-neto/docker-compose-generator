@@ -14,6 +14,7 @@ type Service struct {
 	EnvVars map[string]string
 }
 
+// generateComposeFile generates the content of the docker-compose.yml file
 func generateComposeFile(services []Service) string {
 	composeContent := "version: '3.8'\n\nservices:\n"
 	for _, service := range services {
@@ -38,17 +39,16 @@ func generateComposeFile(services []Service) string {
 	return composeContent
 }
 
-func main() {
+// readServices reads service details from the user
+func readServices() []Service {
 	reader := bufio.NewReader(os.Stdin)
 
-	// Read the number of services
 	fmt.Print("How many services do you want to configure? ")
 	var numServices int
 	fmt.Scanln(&numServices)
 
 	services := make([]Service, numServices)
 
-	// Read the details of each service
 	for i := 0; i < numServices; i++ {
 		fmt.Printf("Configuring service %d\n", i+1)
 
@@ -86,19 +86,26 @@ func main() {
 		}
 	}
 
-	// Generate the content of the docker-compose.yml file
-	composeContent := generateComposeFile(services)
+	return services
+}
 
-	// Create the docker-compose.yml file
-	file, err := os.Create("docker-compose.yml")
+// writeToFile writes the content to a file
+func writeToFile(filename, content string) error {
+	file, err := os.Create(filename)
 	if err != nil {
-		fmt.Println("Error creating the file:", err)
-		return
+		return err
 	}
 	defer file.Close()
 
-	// Write the content to the file
-	_, err = file.WriteString(composeContent)
+	_, err = file.WriteString(content)
+	return err
+}
+
+func main() {
+	services := readServices()
+	composeContent := generateComposeFile(services)
+
+	err := writeToFile("docker-compose.yml", composeContent)
 	if err != nil {
 		fmt.Println("Error writing to the file:", err)
 		return
