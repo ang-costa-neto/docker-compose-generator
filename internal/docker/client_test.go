@@ -1,4 +1,4 @@
-package main
+package docker
 
 import (
 	"testing"
@@ -11,12 +11,13 @@ func TestGenerateComposeFile(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "single service with ports and env vars",
+			name: "single service with version, ports, and env vars",
 			services: []Service{
 				{
-					Name:  "web",
-					Image: "myapp:latest",
-					Ports: []string{"8080:8080"},
+					Name:    "web",
+					Image:   "myapp",
+					Version: "latest",
+					Ports:   []string{"8080:8080"},
 					EnvVars: map[string]string{
 						"KEY": "value",
 					},
@@ -38,9 +39,10 @@ services:
 			name: "multiple services",
 			services: []Service{
 				{
-					Name:  "db",
-					Image: "postgres:13",
-					Ports: []string{"5432:5432"},
+					Name:    "db",
+					Image:   "postgres",
+					Version: "13",
+					Ports:   []string{"5432:5432"},
 					EnvVars: map[string]string{
 						"POSTGRES_USER":     "user",
 						"POSTGRES_PASSWORD": "password",
@@ -48,9 +50,10 @@ services:
 					},
 				},
 				{
-					Name:  "web",
-					Image: "myapp:latest",
-					Ports: []string{"8080:8080"},
+					Name:    "web",
+					Image:   "myapp",
+					Version: "latest",
+					Ports:   []string{"8080:8080"},
 				},
 			},
 			expected: `version: '3.8'
@@ -61,9 +64,9 @@ services:
     ports:
       - "5432:5432"
     environment:
+      - POSTGRES_DB=mydb
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=mydb
 
   web:
     image: myapp:latest
@@ -76,8 +79,9 @@ services:
 			name: "service without ports and env vars",
 			services: []Service{
 				{
-					Name:  "web",
-					Image: "myapp:latest",
+					Name:    "web",
+					Image:   "myapp",
+					Version: "latest",
 				},
 			},
 			expected: `version: '3.8'
@@ -92,7 +96,7 @@ services:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := generateComposeFile(tt.services)
+			result := GenerateComposeFile(tt.services)
 			if result != tt.expected {
 				t.Errorf("got %v, want %v", result, tt.expected)
 			}
