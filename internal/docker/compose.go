@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"strings"
 )
 
 type Service struct {
@@ -14,25 +15,28 @@ type Service struct {
 
 // GenerateComposeFile generates the content of the docker-compose.yml file
 func GenerateComposeFile(services []Service) string {
-	composeContent := "version: '3.8'\n\nservices:\n"
-	for _, service := range services {
-		composeContent += fmt.Sprintf("  %s:\n", service.Name)
-		composeContent += fmt.Sprintf("    image: %s:%s\n", service.Image, service.Version)
+	var sb strings.Builder
+	sb.WriteString("version: '3.8'\n\nservices:\n")
 
-		if len(service.Ports) > 0 && service.Ports[0] != "" {
-			composeContent += "    ports:\n"
+	for _, service := range services {
+		sb.WriteString(fmt.Sprintf("  %s:\n", service.Name))
+		sb.WriteString(fmt.Sprintf("    image: %s:%s\n", service.Image, service.Version))
+
+		if len(service.Ports) > 0 {
+			sb.WriteString("    ports:\n")
 			for _, port := range service.Ports {
-				composeContent += fmt.Sprintf("      - \"%s\"\n", port)
+				sb.WriteString(fmt.Sprintf("      - \"%s\"\n", port))
 			}
 		}
 
 		if len(service.EnvVars) > 0 {
-			composeContent += "    environment:\n"
+			sb.WriteString("    environment:\n")
 			for key, value := range service.EnvVars {
-				composeContent += fmt.Sprintf("      - %s=%s\n", key, value)
+				sb.WriteString(fmt.Sprintf("      - %s=%s\n", key, value))
 			}
 		}
-		composeContent += "\n"
+		sb.WriteString("\n")
 	}
-	return composeContent
+
+	return sb.String()
 }
