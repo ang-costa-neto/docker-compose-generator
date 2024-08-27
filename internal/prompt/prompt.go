@@ -9,19 +9,39 @@ import (
 	"github.com/ang-costa-neto/docker-compose-generator/internal/docker"
 )
 
-// readStringInput reads a string input from the user
-func readStringInput(prompt string, reader *bufio.Reader) (string, error) {
+// InputReader é uma interface para abstrair a leitura de entrada.
+type InputReader interface {
+	ReadString(prompt string) (string, error)
+}
+
+// TagFetcher é uma interface para buscar tags de imagens Docker.
+type TagFetcher interface {
+	GetAvailableTags(image string) ([]string, error)
+}
+
+// ConsoleReader é a implementação padrão de InputReader usando bufio.Reader.
+type ConsoleReader struct {
+	reader *bufio.Reader
+}
+
+// ReadString lê uma string da entrada padrão.
+func (r *ConsoleReader) ReadString(prompt string) (string, error) {
 	fmt.Print(prompt)
-	input, err := reader.ReadString('\n')
+	input, err := r.reader.ReadString('\n')
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(input), nil
 }
 
-// readEnvVars reads environment variables input from the user
-func readEnvVars(prompt string, reader *bufio.Reader) (map[string]string, error) {
-	envVarsStr, err := readStringInput(prompt, reader)
+// NewConsoleReader cria uma nova instância de ConsoleReader.
+func NewConsoleReader() *ConsoleReader {
+	return &ConsoleReader{reader: bufio.NewReader(os.Stdin)}
+}
+
+// readEnvVars lê variáveis de ambiente do usuário.
+func readEnvVars(prompt string, reader InputReader) (map[string]string, error) {
+	envVarsStr, err := reader.ReadString(prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -38,22 +58,24 @@ func readEnvVars(prompt string, reader *bufio.Reader) (map[string]string, error)
 	return envVars, nil
 }
 
-// readPorts reads ports input from the user
-func readPorts(prompt string, reader *bufio.Reader) ([]string, error) {
-	ports, err := readStringInput(prompt, reader)
+// readPorts lê portas do usuário.
+func readPorts(prompt string, reader InputReader) ([]string, error) {
+	ports, err := reader.ReadString(prompt)
 	if err != nil {
 		return nil, err
 	}
 	return strings.Split(ports, ","), nil
 }
 
-// ReadServices reads service details from the user
-func ReadServices() ([]docker.Service, error) {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("How many services do you want to configure? ")
+// ReadServices lê detalhes dos serviços do usuário.
+func ReadServices(reader InputReader, tagFetcher TagFetcher) ([]docker.Service, error) {
+	numServicesStr, err := reader.ReadString("How many services do you want to configure? ")
+	if err != nil {
+		return nil, err
+	}
+	numServicesStr = strings.TrimSpace(numServicesStr)
 	var numServices int
-	_, err := fmt.Scanln(&numServices)
+	_, err = fmt.Sscanf(numServicesStr, "%d", &numServices)
 	if err != nil {
 		return nil, err
 	}
@@ -63,17 +85,17 @@ func ReadServices() ([]docker.Service, error) {
 	for i := 0; i < numServices; i++ {
 		fmt.Printf("Configuring service %d\n", i+1)
 
-		name, err := readStringInput("Service name: ", reader)
+		name, err := reader.ReadString("Service name: ")
 		if err != nil {
 			return nil, err
 		}
 
-		image, err := readStringInput("Service image: ", reader)
+		image, err := reader.ReadString("Service image: ")
 		if err != nil {
 			return nil, err
 		}
 
-		tags, err := docker.GetAvailableTags(image)
+		tags, err := tagFetcher.GetAvailableTags(image)
 		if err != nil {
 			fmt.Printf("Error fetching tags for image %s: %v\n", image, err)
 			continue
@@ -81,7 +103,7 @@ func ReadServices() ([]docker.Service, error) {
 
 		fmt.Printf("Available tags for %s: %s\n", image, strings.Join(tags, ", "))
 
-		version, err := readStringInput("Service version: ", reader)
+		version, err := reader.ReadString("Service version: ")
 		if err != nil {
 			return nil, err
 		}

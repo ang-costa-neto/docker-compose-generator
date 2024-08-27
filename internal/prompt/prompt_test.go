@@ -1,96 +1,70 @@
 package prompt
 
 import (
-	"io"
-	"os"
+	"errors"
 	"testing"
-
-	"github.com/ang-costa-neto/docker-compose-generator/internal/docker"
 )
 
+// MockInputReader é uma implementação de InputReader para testes.
+type MockInputReader struct {
+	Prompts map[string]string
+}
+
+// ReadString usa os prompts simulados para retornar entradas.
+func (m *MockInputReader) ReadString(prompt string) (string, error) {
+	if response, ok := m.Prompts[prompt]; ok {
+		return response, nil
+	}
+	return "", errors.New("unexpected prompt")
+}
+
+// MockTagFetcher é uma implementação de TagFetcher para testes.
+type MockTagFetcher struct {
+	Tags []string
+	Err  error
+}
+
+// GetAvailableTags retorna tags simuladas ou um erro.
+func (m *MockTagFetcher) GetAvailableTags(image string) ([]string, error) {
+	return m.Tags, m.Err
+}
+
 func TestReadServices(t *testing.T) {
-	// Mock input
-	input := "2\nservice1\nimage1\nlatest\n8080:80\nKEY1=VALUE1,KEY2=VALUE2\nservice2\nimage2\nstable\n5432:5432\nKEY3=VALUE3\n"
-	expectedServices := []docker.Service{
-		{
-			Name:    "service1",
-			Image:   "image1",
-			Version: "latest",
-			Ports:   []string{"8080:80"},
-			EnvVars: map[string]string{"KEY1": "VALUE1", "KEY2": "VALUE2"},
-		},
-		{
-			Name:    "service2",
-			Image:   "image2",
-			Version: "stable",
-			Ports:   []string{"5432:5432"},
-			EnvVars: map[string]string{"KEY3": "VALUE3"},
+	mockReader := &MockInputReader{
+		Prompts: map[string]string{
+			"How many services do you want to configure? ": "1",
+			"Service name: ":                     "web",
+			"Service image: ":                    "nginx",
+			"Service version: ":                  "latest",
+			"Ports (e.g., 8080:80, 5432:5432): ": "8080:80",
+			"Environment variables (e.g., KEY=VALUE,KEY2=VALUE2): ": "KEY=VALUE",
 		},
 	}
 
-	// Create a pipe to simulate stdin
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("failed to create pipe: %v", err)
+	mockFetcher := &MockTagFetcher{
+		Tags: []string{"latest", "1.0"},
+		Err:  nil,
 	}
 
-	// Write the input to the writer
-	_, err = io.WriteString(w, input)
-	if err != nil {
-		t.Fatalf("failed to write input to pipe: %v", err)
-	}
-	w.Close()
-
-	// Backup the original os.Stdin and restore it after the test
-	oldStdin := os.Stdin
-	defer func() { os.Stdin = oldStdin }()
-	os.Stdin = r
-
-	// Execute the function
-	services, err := ReadServices()
+	services, err := ReadServices(mockReader, mockFetcher)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	// Validate the result
-	if len(services) != len(expectedServices) {
-		t.Fatalf("expected %d services, got %d", len(expectedServices), len(services))
+	if len(services) != 1 {
+		t.Fatalf("expected 1 service, got %d", len(services))
 	}
 
-	for i, service := range services {
-		expected := expectedServices[i]
-		if service.Name != expected.Name ||
-			service.Image != expected.Image ||
-			service.Version != expected.Version ||
-			!equalSlices(service.Ports, expected.Ports) ||
-			!equalMaps(service.EnvVars, expected.EnvVars) {
-			t.Errorf("expected service %v, got %v", expected, service)
-		}
+	service := services[0]
+	if service.Name != "web" || service.Image != "nginx" || service.Version != "latest" {
+		t.Fatalf("unexpected service details: %+v", service)
 	}
-}
 
-// Helper function to compare slices
-func equalSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
+	if len(service.Ports) != 1 || service.Ports[0] != "8080:80" {
+		t.Fatalf("unexpected ports: %v", service.Ports)
 	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
 
-// Helper function to compare maps
-func equalMaps(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
+	if len(service.EnvVars) != 1 || service.EnvVars["KEY"] != "VALUE" {
+		t.Fatalf("unexpected environment variables: %v", service.EnvVars)
 	}
-	for k, v := range a {
-		if b[k] != v {
-			return false
-		}
-	}
-	return true
 }
